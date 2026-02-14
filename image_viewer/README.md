@@ -1,0 +1,1 @@
+thanks Skybox AI by Blockade for the equirectandular image used as example
