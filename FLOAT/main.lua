@@ -287,26 +287,31 @@ function lovr.update(dt)
 
   -- ── Locomotion ───────────────────────────────────────────
   do
-    local hox,hoy,hoz,how = lovr.headset.getOrientation()
-    local headYaw = math.atan2(
-      2*(hoy*how + hox*hoz),
-      1 - 2*(hoy*hoy + hox*hox)
-    )
-    local moveYaw = headYaw + worldYaw
+    local angle, ax, ay, az = lovr.headset.getOrientation()
 
-    -- Left stick → walk (direction corrected: forward = negative Z in local space)
-    local lx,ly = lovr.headset.getAxis('left','thumbstick')
+    -- Rotate the local forward vector (0,0,-1) by the headset orientation
+    local q = lovr.math.newQuat(angle, ax, ay, az)
+    local forward = q:mul(lovr.math.newVec3(0, 0, -1))
+
+    -- Flatten to XZ (ignore head tilt for walking)
+    local fwdX = forward.x
+    local fwdZ = forward.z
+    local flen = math.sqrt(fwdX*fwdX + fwdZ*fwdZ)
+    if flen > 0.001 then fwdX=fwdX/flen; fwdZ=fwdZ/flen end
+
+    -- Right = forward rotated 90° CW around Y
+    local rightX =  fwdZ
+    local rightZ = -fwdX
+
+    -- Left stick → walk in head-facing direction
+    local lx, ly = lovr.headset.getAxis('left', 'thumbstick') 
     if lx and ly and not grabbed[1] then
-      local c=math.cos(moveYaw); local s=math.sin(moveYaw)
-      -- fixed: negate mx/mz so stick-forward moves player forward
-      local mx = -(s*ly + c*lx) * MOVE_SPEED * dt
-      local mz = -(c*ly - s*lx) * MOVE_SPEED * dt
-      worldX = worldX + mx
-      worldZ = worldZ + mz
+      worldX = worldX + (fwdX*-ly + rightX*lx) * MOVE_SPEED * dt
+      worldZ = worldZ + (fwdZ*-ly + rightZ*lx) * MOVE_SPEED * dt
     end
 
-    -- Right stick Y → vertical offset only (removed snap turn on X)
-    local rx,ry = lovr.headset.getAxis('right','thumbstick')
+    -- Right stick Y → vertical offset
+    local rx, ry = lovr.headset.getAxis('right', 'thumbstick')
     if ry and math.abs(ry) > 0.5 then
       worldY = worldY + ry * 0.5 * dt
     end
